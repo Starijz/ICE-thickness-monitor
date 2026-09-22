@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Ice Thickness Monitor</title>
+    <meta
+      name="description"
+      content="PWA для измерения и визуализации толщины льда на ледовой арене с поддержкой Bluetooth-штангенциркуля, Google Таблиц и экспорта схемы поля."
+    />
+    <meta property="og:title" content="Ice Thickness Monitor" />
+    <meta
+      property="og:description"
+      content="PWA для измерения и визуализации толщины льда на ледовой арене с поддержкой Bluetooth-штангенциркуля, Google Таблиц и экспорта схемы поля."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Favicon & PWA Theme -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#0284c7" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Контроль Льда" />
+
+    <!-- Google Identity Services for Google Sheets OAuth -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+  </head>
+  <body class="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen overflow-x-hidden">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

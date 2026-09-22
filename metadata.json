@@ -1,0 +1,6 @@
+{
+  "name": "Ice Thickness Monitor",
+  "description": "PWA для измерения и визуализации толщины льда на ледовой арене с поддержкой Bluetooth-штангенциркуля, Google Таблиц и экспорта схемы поля.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
