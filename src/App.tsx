@@ -217,73 +217,64 @@ export default function App() {
     };
   }, [triggerQueueSync]);
 
-  // Advance to next unmeasured point or next consecutive point
-  const advanceToNextPoint = useCallback(
-    (currentNum: number, currentMeasurements?: Record<number, number>) => {
-      if (points.length === 0) return;
-      const sorted = [...points].sort((a, b) => Number(a.number) - Number(b.number));
+  // Helper to calculate next and prev point numbers by sorted order
+  const nextNumberBySort = (
+    currentNum: number | null,
+    pointsList: PointLocation[]
+  ): number => {
+    if (!pointsList || pointsList.length === 0) return 1;
+    const sorted = [...pointsList].sort((a, b) => Number(a.number) - Number(b.number));
+    if (currentNum === null) return Number(sorted[0].number);
+    const currentIndex = sorted.findIndex((p) => Number(p.number) === Number(currentNum));
+    if (currentIndex >= 0 && currentIndex < sorted.length - 1) {
+      return Number(sorted[currentIndex + 1].number);
+    }
+    return Number(sorted[0].number);
+  };
 
-      // First try to find next unmeasured point after currentNum
-      if (currentMeasurements) {
-        const nextUnmeasured = sorted.find(
-          (p) => Number(p.number) > Number(currentNum) && currentMeasurements[Number(p.number)] === undefined
-        );
-        if (nextUnmeasured) {
-          setActivePointNumber(Number(nextUnmeasured.number));
-          return;
-        }
-        // Or any unmeasured point
-        const anyUnmeasured = sorted.find((p) => currentMeasurements[Number(p.number)] === undefined);
-        if (anyUnmeasured) {
-          setActivePointNumber(Number(anyUnmeasured.number));
-          return;
-        }
-      }
-
-      // If all measured or no unmeasured found, proceed sequentially (with wrap around)
-      const currentIndex = sorted.findIndex((p) => Number(p.number) === Number(currentNum));
-      if (currentIndex >= 0 && currentIndex < sorted.length - 1) {
-        setActivePointNumber(Number(sorted[currentIndex + 1].number));
-      } else {
-        setActivePointNumber(Number(sorted[0].number));
-      }
-    },
-    [points]
-  );
+  const prevNumberBySort = (
+    currentNum: number | null,
+    pointsList: PointLocation[]
+  ): number => {
+    if (!pointsList || pointsList.length === 0) return 1;
+    const sorted = [...pointsList].sort((a, b) => Number(a.number) - Number(b.number));
+    if (currentNum === null) return Number(sorted[0].number);
+    const currentIndex = sorted.findIndex((p) => Number(p.number) === Number(currentNum));
+    if (currentIndex > 0) {
+      return Number(sorted[currentIndex - 1].number);
+    }
+    return Number(sorted[sorted.length - 1].number);
+  };
 
   // Next and Prev point handlers
   const handleNextPoint = useCallback(() => {
-    if (activePointNumber === null || points.length === 0) return;
-    const sorted = [...points].sort((a, b) => Number(a.number) - Number(b.number));
-    const currentIndex = sorted.findIndex((p) => Number(p.number) === Number(activePointNumber));
-    if (currentIndex >= 0 && currentIndex < sorted.length - 1) {
-      setActivePointNumber(Number(sorted[currentIndex + 1].number));
-    } else {
-      setActivePointNumber(Number(sorted[0].number));
-    }
-  }, [activePointNumber, points]);
+    setActivePointNumber((prev) => nextNumberBySort(prev, points));
+  }, [points]);
 
   const handlePrevPoint = useCallback(() => {
-    if (activePointNumber === null || points.length === 0) return;
-    const sorted = [...points].sort((a, b) => Number(a.number) - Number(b.number));
-    const currentIndex = sorted.findIndex((p) => Number(p.number) === Number(activePointNumber));
-    if (currentIndex > 0) {
-      setActivePointNumber(Number(sorted[currentIndex - 1].number));
-    } else if (sorted.length > 0) {
-      setActivePointNumber(Number(sorted[sorted.length - 1].number));
+    setActivePointNumber((prev) => prevNumberBySort(prev, points));
+  }, [points]);
+
+  // Handle point selection & manual input modal opening
+  const handleSelectPoint = useCallback((pointNum: number) => {
+    setActivePointNumber(Number(pointNum));
+  }, []);
+
+  const handleOpenManualInput = useCallback((pointNum?: number) => {
+    if (pointNum !== undefined && pointNum !== null) {
+      setActivePointNumber(Number(pointNum));
     }
-  }, [activePointNumber, points]);
+    setIsManualInputOpen(true);
+  }, []);
 
   // Apply measurement to point
   const applyMeasurement = useCallback(
     (pointNum: number, value: number, shouldAdvance = false) => {
       const numKey = Number(pointNum);
       const roundedVal = Math.round(value * 100) / 100;
-      let nextMeasurements: Record<number, number> = {};
 
       setMeasurements((prev) => {
         const next = { ...prev, [numKey]: roundedVal };
-        nextMeasurements = next;
         saveActiveDraft(next, currentSessionId);
         return next;
       });
@@ -293,10 +284,10 @@ export default function App() {
       }
 
       if (shouldAdvance) {
-        advanceToNextPoint(numKey, nextMeasurements);
+        setActivePointNumber((prev) => nextNumberBySort(prev !== null ? prev : numKey, points));
       }
     },
-    [soundEnabled, currentSessionId, advanceToNextPoint]
+    [soundEnabled, currentSessionId, points]
   );
 
   // BLE Caliper callbacks
@@ -750,7 +741,7 @@ export default function App() {
           currentValue={
             activePointNumber !== null ? measurements[Number(activePointNumber)] : undefined
           }
-          onOpenManualInput={() => setIsManualInputOpen(true)}
+          onOpenManualInput={() => handleOpenManualInput()}
           onClearActivePoint={handleClearActivePoint}
           onPrevPoint={handlePrevPoint}
           onNextPoint={handleNextPoint}
@@ -801,11 +792,8 @@ export default function App() {
             points={points}
             measurements={measurements}
             activePointNumber={activePointNumber}
-            onSelectPoint={(num) => setActivePointNumber(Number(num))}
-            onOpenManualInput={(num) => {
-              setActivePointNumber(Number(num));
-              setIsManualInputOpen(true);
-            }}
+            onSelectPoint={handleSelectPoint}
+            onOpenManualInput={handleOpenManualInput}
             thresholds={settings.thresholds}
             editMode={editRinkMode}
             onUpdatePointCoords={handleUpdatePointCoords}
@@ -842,13 +830,14 @@ export default function App() {
         point={activePoint}
         points={points}
         measurements={measurements}
-        onSelectPoint={(num) => setActivePointNumber(Number(num))}
+        onSelectPoint={handleSelectPoint}
         initialValue={
           activePointNumber !== null ? measurements[Number(activePointNumber)] : undefined
         }
         onSave={(val, advanceNext) => {
-          if (activePointNumber !== null) {
-            applyMeasurement(activePointNumber, val, advanceNext);
+          const targetPointNum = activePoint ? Number(activePoint.number) : activePointNumber;
+          if (targetPointNum !== null) {
+            applyMeasurement(targetPointNum, val, advanceNext);
           }
         }}
         onClearPoint={handleClearActivePoint}

@@ -50,13 +50,23 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollChipsRef = useRef<HTMLDivElement>(null);
 
+  const sortedPoints = useMemo(
+    () => [...points].sort((a, b) => Number(a.number) - Number(b.number)),
+    [points]
+  );
+
+  const currentPointNumber = point ? Number(point.number) : undefined;
+  const currentPointMeasurement = currentPointNumber !== undefined ? measurements[currentPointNumber] : undefined;
+
   // Sync state whenever modal opens or active point changes
   useEffect(() => {
     if (isOpen && point) {
-      if (initialValue !== undefined && initialValue !== null && !isNaN(initialValue)) {
-        const str = Number.isInteger(initialValue)
-          ? String(initialValue)
-          : initialValue.toFixed(2).replace(/\.?0+$/, '');
+      const pNum = Number(point.number);
+      const measuredVal = currentPointMeasurement !== undefined ? currentPointMeasurement : initialValue;
+      if (measuredVal !== undefined && measuredVal !== null && !isNaN(measuredVal)) {
+        const str = Number.isInteger(measuredVal)
+          ? String(measuredVal)
+          : measuredVal.toFixed(2).replace(/\.?0+$/, '');
         setValStr(str);
         setIsInitialUntouched(true);
       } else {
@@ -72,7 +82,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
         }
         // Auto scroll active chip into view
         if (scrollChipsRef.current) {
-          const activeChip = scrollChipsRef.current.querySelector(`[data-chip="${point.number}"]`);
+          const activeChip = scrollChipsRef.current.querySelector(`[data-chip="${pNum}"]`);
           if (activeChip) {
             activeChip.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
           }
@@ -81,7 +91,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
 
       return () => clearTimeout(timer);
     }
-  }, [isOpen, initialValue, point?.number]);
+  }, [isOpen, currentPointNumber, currentPointMeasurement, initialValue]);
 
   if (!isOpen || !point) return null;
 
@@ -170,10 +180,6 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
   };
 
   const quickPresets = [30.0, 35.0, 38.0, 40.0, 42.0, 45.0];
-  const sortedPoints = useMemo(
-    () => [...points].sort((a, b) => Number(a.number) - Number(b.number)),
-    [points]
-  );
   const isValidNumber = !isNaN(parseFloat(valStr.replace(',', '.'))) && parseFloat(valStr.replace(',', '.')) >= 0;
 
   return (
