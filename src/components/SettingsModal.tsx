@@ -4,7 +4,7 @@
  * Fully localized (LV, EN, RU).
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Save,
@@ -21,7 +21,8 @@ import {
   Globe
 } from 'lucide-react';
 import { ArenaSettings } from '../types';
-import { DEFAULT_SETTINGS } from '../data/defaultPoints';
+import { DEFAULT_SETTINGS, getLocalizedArenaName } from '../data/defaultPoints';
+import { saveSettings } from '../db/indexedDb';
 import { GoogleSetupGuide } from './GoogleSetupGuide';
 import {
   getCachedToken,
@@ -54,6 +55,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [testingConnection, setTestingConnection] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({ ...settings });
+      setHasToken(!!getCachedToken());
+    }
+  }, [isOpen, settings]);
+
   if (!isOpen) return null;
 
   const handleGoogleLogin = () => {
@@ -61,6 +69,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setAuthStatus(t.googleClientIdHelp);
       return;
     }
+    // Immediately persist Google credentials before OAuth popup
+    saveSettings(formData);
+    onSaveSettings(formData);
+
     setAuthStatus(t.syncing);
     requestGoogleAccessToken(
       formData.googleClientId,
@@ -82,6 +94,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleTestConnection = async () => {
+    // Immediately persist current Google credentials when testing connection
+    await saveSettings(formData);
+    onSaveSettings(formData);
+
     const token = getCachedToken();
     if (!token) {
       setTestResult({ success: false, message: t.googleLoginRequired });
@@ -125,7 +141,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleReset = () => {
     if (confirm(t.confirmResetSettings)) {
-      setFormData(DEFAULT_SETTINGS);
+      // Preserve Google Sheets access settings even when resetting thresholds/general settings
+      setFormData({
+        ...DEFAULT_SETTINGS,
+        spreadsheetId: formData.spreadsheetId,
+        googleClientId: formData.googleClientId,
+      });
     }
   };
 
@@ -238,9 +259,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={formData.arenaName}
+                  value={getLocalizedArenaName(formData.arenaName, lang)}
                   onChange={(e) => setFormData({ ...formData, arenaName: e.target.value })}
-                  placeholder="Ice Arena Riga"
+                  placeholder={getLocalizedArenaName('', lang)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
@@ -279,7 +300,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400 mb-1">
                       <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                      {t.belowNormal} (до X mm)
+                      {t.belowNormal} (≤ X mm)
                     </div>
                     <input
                       type="number"
@@ -302,7 +323,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 rounded-xl">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 mb-1">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                      {t.optimal} (до X mm)
+                      {t.optimal} (≤ X mm)
                     </div>
                     <input
                       type="number"
@@ -430,7 +451,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <input
                   type="text"
                   value={formData.spreadsheetId}
-                  onChange={(e) => setFormData({ ...formData, spreadsheetId: e.target.value.trim() })}
+                  onChange={(e) => {
+                    const next = { ...formData, spreadsheetId: e.target.value.trim() };
+                    setFormData(next);
+                    saveSettings(next);
+                  }}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
@@ -446,7 +471,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <input
                   type="text"
                   value={formData.googleClientId}
-                  onChange={(e) => setFormData({ ...formData, googleClientId: e.target.value.trim() })}
+                  onChange={(e) => {
+                    const next = { ...formData, googleClientId: e.target.value.trim() };
+                    setFormData(next);
+                    saveSettings(next);
+                  }}
                   placeholder="xxxx-xxxx.apps.googleusercontent.com"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />

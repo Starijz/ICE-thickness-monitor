@@ -4,10 +4,10 @@
  * Fully localized (LV, EN, RU).
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Edit2, Check, MapPin } from 'lucide-react';
 import { PointLocation } from '../types';
-import { POINT_PRESETS } from '../data/defaultPoints';
+import { POINT_PRESETS, getLocalizedPointName } from '../data/defaultPoints';
 import { useLanguage } from '../i18n/LanguageContext';
 
 interface PointsAdminModalProps {
@@ -23,7 +23,7 @@ export const PointsAdminModal: React.FC<PointsAdminModalProps> = ({
   points,
   onSavePoints,
 }) => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [pointList, setPointList] = useState<PointLocation[]>([...points]);
   const [editingPoint, setEditingPoint] = useState<PointLocation | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -34,6 +34,14 @@ export const PointsAdminModal: React.FC<PointsAdminModalProps> = ({
   const [formX, setFormX] = useState<number>(30);
   const [formY, setFormY] = useState<number>(15);
   const [formZone, setFormZone] = useState<'defending' | 'neutral' | 'attacking'>('neutral');
+
+  useEffect(() => {
+    if (isOpen) {
+      setPointList([...points]);
+      setIsAdding(false);
+      setEditingPoint(null);
+    }
+  }, [isOpen, points]);
 
   if (!isOpen) return null;
 
@@ -52,7 +60,7 @@ export const PointsAdminModal: React.FC<PointsAdminModalProps> = ({
     setEditingPoint(p);
     setIsAdding(false);
     setFormNumber(p.number);
-    setFormName(p.name);
+    setFormName(getLocalizedPointName(p, lang));
     setFormX(p.x);
     setFormY(p.y);
     setFormZone(p.zone || 'neutral');
@@ -164,7 +172,7 @@ export const PointsAdminModal: React.FC<PointsAdminModalProps> = ({
               className="mb-5 p-4 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/60 rounded-2xl space-y-3"
             >
               <div className="font-bold text-sm text-sky-900 dark:text-sky-300">
-                {isAdding ? t.addPoint : `№${editingPoint?.number} — ${editingPoint?.name}`}
+                {isAdding ? t.addPoint : `№${editingPoint?.number} — ${getLocalizedPointName(editingPoint, lang)}`}
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -275,7 +283,7 @@ export const PointsAdminModal: React.FC<PointsAdminModalProps> = ({
                         №{p.number}
                       </td>
                       <td className="py-2.5 px-3 font-medium text-slate-900 dark:text-slate-100">
-                        {p.name}
+                        {getLocalizedPointName(p, lang)}
                       </td>
                       <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-400">
                         {p.x.toFixed(1)} m

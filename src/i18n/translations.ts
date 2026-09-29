@@ -49,6 +49,14 @@ export interface Translations {
   measured: string;
   notMeasured: string;
   waitingReading: string;
+  gemRedReady: string;
+  hidInputPrefix: string;
+  gemRedReceiverTitle: string;
+  gemRedReceiverDesc: string;
+  gemRedWaitBtn: string;
+  gemRedTapFocus: string;
+  howToConnect: string;
+  toggleCaliperControls: string;
 
   // Hockey Rink
   defendingZone: string;
@@ -93,6 +101,16 @@ export interface Translations {
   apply: string;
   clear: string;
   enterThickness: string;
+  tapDigitToReplace: string;
+  resetPointMeasurement: string;
+
+  // PWA Install
+  installIOS: string;
+  iosGuideTitle: string;
+  iosStep1: string;
+  iosStep2: string;
+  iosStep3: string;
+  gotIt: string;
 
   // Settings Modal
   settingsTitle: string;
@@ -235,6 +253,14 @@ export const translations: Record<Language, Translations> = {
     measured: 'Izmērīts',
     notMeasured: 'Nav mērīts',
     waitingReading: 'Gaida datus no bībmēra...',
+    gemRedReady: 'GemRed HID / BLE Gatavs',
+    hidInputPrefix: 'Ievade',
+    gemRedReceiverTitle: 'GemRed bībmērs (ar sānu pogu):',
+    gemRedReceiverDesc: 'pieslēdziet tālruņa/PC Bluetooth iestatījumos un spiediet sānu pogu uz ierīces.',
+    gemRedWaitBtn: '🟢 Gaida bībmēra pogu...',
+    gemRedTapFocus: 'Nospiediet fokusam viedtālrunī',
+    howToConnect: 'Kā pieslēgt?',
+    toggleCaliperControls: 'Izvērst / sakļaut bībmēra iestatījumus',
 
     // Hockey Rink
     defendingZone: 'Aizsardzības zona',
@@ -279,6 +305,16 @@ export const translations: Record<Language, Translations> = {
     apply: 'Piemērot',
     clear: 'Notīrīt',
     enterThickness: 'Ievadiet biezumu milimetros (mm)',
+    tapDigitToReplace: 'Nospiediet ciparu vai sagatavi, lai aizstātu',
+    resetPointMeasurement: 'Atiestatīt mērījumu punktam Nr.',
+
+    // PWA Install
+    installIOS: 'Instalēt iOS',
+    iosGuideTitle: 'Instalēšana uz iPad / iPhone',
+    iosStep1: '1. Nospiediet pogu «Kopīgot» (Share ikona Safari augšā vai apakšā).',
+    iosStep2: '2. Ritiniet lejup un izvēlieties «Pievienot sākuma ekrānam» (Add to Home Screen).',
+    iosStep3: '3. Nospiediet «Pievienot» augšējā labajā stūrī.',
+    gotIt: 'Sapratu',
 
     // Settings Modal
     settingsTitle: 'Lietotnes iestatījumi',
@@ -310,7 +346,7 @@ export const translations: Record<Language, Translations> = {
     // Admin Points Modal
     pointsAdminTitle: 'Mērījumu punktu pārvaldība',
     pointsAdminSubtitle: 'Rediģējiet punktu numurus, nosaukumus un koordinātas uz 30×60m laukuma',
-    presetStandard24: 'Standarta 24 punkti',
+    presetStandard24: 'Standarta 25 punkti',
     presetFast12: 'Ekspress 12 punkti',
     addPoint: 'Pievienot punktu',
     pointNumber: 'Nr.',
@@ -420,6 +456,14 @@ export const translations: Record<Language, Translations> = {
     measured: 'Measured',
     notMeasured: 'Not measured',
     waitingReading: 'Waiting for caliper data...',
+    gemRedReady: 'GemRed HID / BLE Ready',
+    hidInputPrefix: 'Input',
+    gemRedReceiverTitle: 'GemRed Caliper (with side button):',
+    gemRedReceiverDesc: 'pair in phone/PC Bluetooth settings and press the side button on the caliper.',
+    gemRedWaitBtn: '🟢 Waiting for caliper button...',
+    gemRedTapFocus: 'Tap here to focus on smartphone',
+    howToConnect: 'How to connect?',
+    toggleCaliperControls: 'Expand / collapse caliper controls',
 
     // Hockey Rink
     defendingZone: 'Defending Zone',
@@ -464,6 +508,16 @@ export const translations: Record<Language, Translations> = {
     apply: 'Apply',
     clear: 'Clear',
     enterThickness: 'Enter thickness in millimeters (mm)',
+    tapDigitToReplace: 'Tap a digit or preset to replace',
+    resetPointMeasurement: 'Reset measurement for point #',
+
+    // PWA Install
+    installIOS: 'Install on iOS',
+    iosGuideTitle: 'Install on iPad / iPhone',
+    iosStep1: '1. Tap the "Share" button in Safari.',
+    iosStep2: '2. Scroll down and select "Add to Home Screen".',
+    iosStep3: '3. Tap "Add" in the top-right corner.',
+    gotIt: 'Got it',
 
     // Settings Modal
     settingsTitle: 'Application Settings',
@@ -495,7 +549,7 @@ export const translations: Record<Language, Translations> = {
     // Admin Points Modal
     pointsAdminTitle: 'Measurement Points Management',
     pointsAdminSubtitle: 'Edit point numbers, labels, and coordinates on the 30×60m rink',
-    presetStandard24: 'Standard 24 points',
+    presetStandard24: 'Standard 25 points',
     presetFast12: 'Express 12 points',
     addPoint: 'Add Point',
     pointNumber: 'No.',
@@ -605,6 +659,14 @@ export const translations: Record<Language, Translations> = {
     measured: 'Измерено',
     notMeasured: 'Не измерено',
     waitingReading: 'Ожидание данных со штангенциркуля...',
+    gemRedReady: 'GemRed HID / BLE Готов',
+    hidInputPrefix: 'Ввод',
+    gemRedReceiverTitle: 'Штангенциркуль GemRed (с кнопкой сбоку):',
+    gemRedReceiverDesc: 'подключите в Bluetooth телефона/ПК и просто нажимайте боковую кнопку на приборе.',
+    gemRedWaitBtn: '🟢 Жду кнопку штангеля...',
+    gemRedTapFocus: 'Нажмите для фокуса на смартфоне',
+    howToConnect: 'Как подключить?',
+    toggleCaliperControls: 'Развернуть / свернуть настройки штангенциркуля',
 
     // Hockey Rink
     defendingZone: 'Зона защиты',
@@ -649,6 +711,16 @@ export const translations: Record<Language, Translations> = {
     apply: 'Применить',
     clear: 'Очистить',
     enterThickness: 'Введите толщину льда в миллиметрах (мм)',
+    tapDigitToReplace: 'Нажмите цифру или пресет для замены',
+    resetPointMeasurement: 'Сбросить замер точки №',
+
+    // PWA Install
+    installIOS: 'Установить на iOS',
+    iosGuideTitle: 'Установка на iPad / iPhone',
+    iosStep1: '1. Нажмите кнопку «Поделиться» (значок со стрелкой вверху или внизу Safari).',
+    iosStep2: '2. Прокрутите список вниз и выберите «На экран "Домой"» (Add to Home Screen).',
+    iosStep3: '3. Нажмите «Добавить» в правом верхнем углу.',
+    gotIt: 'Понятно',
 
     // Settings Modal
     settingsTitle: 'Настройки приложения',
@@ -680,7 +752,7 @@ export const translations: Record<Language, Translations> = {
     // Admin Points Modal
     pointsAdminTitle: 'Управление точками измерений',
     pointsAdminSubtitle: 'Настройка номеров, названий и координат на площадке 30×60 м',
-    presetStandard24: 'Стандартная сетка (24 точки)',
+    presetStandard24: 'Стандартная сетка (25 точек)',
     presetFast12: 'Экспресс-контроль (12 точек)',
     addPoint: 'Добавить точку',
     pointNumber: '№',

@@ -86,12 +86,16 @@ class BleCaliperService {
           { namePrefix: 'BLE' },
           { namePrefix: 'JDY' },
           { namePrefix: 'SHANG' },
+          { namePrefix: 'GemRed' },
+          { namePrefix: 'GEMRED' },
         ],
         optionalServices: [
           sUuid,
           '0000ffe0-0000-1000-8000-00805f9b34fb',
+          '0000fff0-0000-1000-8000-00805f9b34fb',
           '0ffe', // 16-bit short form
           'ffe0',
+          'fff0',
           '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART
         ],
       };
@@ -101,9 +105,21 @@ class BleCaliperService {
       try {
         dev = await (navigator as any).bluetooth.requestDevice(options);
       } catch (filterErr: any) {
-        // If user cancelled, rethrow
-        if (filterErr.name === 'NotFoundError') {
+        const errMsg = String(filterErr?.message || filterErr || '');
+        // If user cancelled or permissions policy blocks Web Bluetooth in iframe, do not retry
+        if (filterErr?.name === 'NotFoundError') {
           this.updateStatus('disconnected', 'Выбор устройства отменен пользователем.');
+          return false;
+        }
+        if (
+          filterErr?.name === 'SecurityError' ||
+          errMsg.toLowerCase().includes('permissions policy') ||
+          errMsg.toLowerCase().includes('disallowed')
+        ) {
+          this.updateStatus(
+            'error',
+            'Web Bluetooth заблокирован во встроенном окне предпросмотра. Для штангенциркуля GemRed используйте режим HID (подключение через настройки Bluetooth телефона/ПК) или откройте приложение в отдельной вкладке Chrome.'
+          );
           return false;
         }
         // Try with acceptAllDevices
@@ -112,7 +128,9 @@ class BleCaliperService {
           optionalServices: [
             sUuid,
             '0000ffe0-0000-1000-8000-00805f9b34fb',
+            '0000fff0-0000-1000-8000-00805f9b34fb',
             'ffe0',
+            'fff0',
             '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
           ],
         });
@@ -123,11 +141,21 @@ class BleCaliperService {
 
       return await this.connectGatt(sUuid, cUuid);
     } catch (err: any) {
-      console.error('BLE connection failed:', err);
-      if (err.name === 'NotFoundError') {
+      const errMsg = String(err?.message || err || '');
+      if (err?.name === 'NotFoundError') {
         this.updateStatus('disconnected', 'Поиск отменен');
+      } else if (
+        err?.name === 'SecurityError' ||
+        errMsg.toLowerCase().includes('permissions policy') ||
+        errMsg.toLowerCase().includes('disallowed')
+      ) {
+        this.updateStatus(
+          'error',
+          'Для штангенциркуля GemRed подключите его в обычных настройках Bluetooth телефона/ПК (режим HID). Для прямого BLE откройте приложение в отдельной вкладке.'
+        );
       } else {
-        this.updateStatus('error', `Ошибка подключения: ${err.message || err}`);
+        console.warn('BLE connection warning:', errMsg);
+        this.updateStatus('error', `Ошибка подключения: ${errMsg}`);
       }
       return false;
     }
@@ -152,7 +180,11 @@ class BleCaliperService {
         try {
           service = await this.server.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb');
         } catch {
-          service = await this.server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
+          try {
+            service = await this.server.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb');
+          } catch {
+            service = await this.server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
+          }
         }
       }
 
@@ -160,8 +192,12 @@ class BleCaliperService {
       try {
         this.characteristic = await service.getCharacteristic(characteristicUuid);
       } catch {
-        // Fallback to FFE1
-        this.characteristic = await service.getCharacteristic('0000ffe1-0000-1000-8000-00805f9b34fb');
+        // Fallback to FFE1 or FFF1
+        try {
+          this.characteristic = await service.getCharacteristic('0000ffe1-0000-1000-8000-00805f9b34fb');
+        } catch {
+          this.characteristic = await service.getCharacteristic('0000fff1-0000-1000-8000-00805f9b34fb');
+        }
       }
 
       // Subscribe to notifications
@@ -172,7 +208,7 @@ class BleCaliperService {
       this.updateStatus('connected', `Подключено к ${this.device.name || 'Штангенциркулю BLE'}`);
       return true;
     } catch (err: any) {
-      console.error('GATT connection error:', err);
+      console.warn('GATT connection warning:', err);
       this.updateStatus('error', `Ошибка службы BLE: ${err.message}`);
       return false;
     }

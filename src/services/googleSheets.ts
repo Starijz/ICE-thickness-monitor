@@ -13,8 +13,9 @@ const GOOGLE_OAUTH_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
 
 const SESSION_TOKEN_KEY = 'ice_gsi_token';
 const SESSION_EXPIRY_KEY = 'ice_gsi_token_exp';
+const CONSENTED_CLIENT_KEY = 'ice_gsi_consented_client';
 
-// In-memory token storage with sessionStorage fallback
+// In-memory token storage with localStorage + sessionStorage fallback
 let inMemoryAccessToken: string | null = null;
 let tokenExpiresAt: number = 0;
 
@@ -40,11 +41,13 @@ export function getCachedToken(): string | null {
     return inMemoryAccessToken;
   }
 
-  // Fallback to sessionStorage for page reloads
+  // Fallback to localStorage (and sessionStorage) so tokens survive page reloads & build updates
   if (typeof window !== 'undefined') {
     try {
-      const savedToken = sessionStorage.getItem(SESSION_TOKEN_KEY);
-      const savedExp = sessionStorage.getItem(SESSION_EXPIRY_KEY);
+      const savedToken =
+        localStorage.getItem(SESSION_TOKEN_KEY) || sessionStorage.getItem(SESSION_TOKEN_KEY);
+      const savedExp =
+        localStorage.getItem(SESSION_EXPIRY_KEY) || sessionStorage.getItem(SESSION_EXPIRY_KEY);
       if (savedToken && savedExp) {
         const exp = parseInt(savedExp, 10);
         if (now < exp) {
@@ -52,6 +55,8 @@ export function getCachedToken(): string | null {
           tokenExpiresAt = exp;
           return savedToken;
         } else {
+          localStorage.removeItem(SESSION_TOKEN_KEY);
+          localStorage.removeItem(SESSION_EXPIRY_KEY);
           sessionStorage.removeItem(SESSION_TOKEN_KEY);
           sessionStorage.removeItem(SESSION_EXPIRY_KEY);
         }
@@ -70,6 +75,8 @@ export function setCachedToken(token: string, expiresInSeconds: number = 3600) {
 
   if (typeof window !== 'undefined') {
     try {
+      localStorage.setItem(SESSION_TOKEN_KEY, token);
+      localStorage.setItem(SESSION_EXPIRY_KEY, tokenExpiresAt.toString());
       sessionStorage.setItem(SESSION_TOKEN_KEY, token);
       sessionStorage.setItem(SESSION_EXPIRY_KEY, tokenExpiresAt.toString());
     } catch {
@@ -83,6 +90,8 @@ export function clearCachedToken() {
   tokenExpiresAt = 0;
   if (typeof window !== 'undefined') {
     try {
+      localStorage.removeItem(SESSION_TOKEN_KEY);
+      localStorage.removeItem(SESSION_EXPIRY_KEY);
       sessionStorage.removeItem(SESSION_TOKEN_KEY);
       sessionStorage.removeItem(SESSION_EXPIRY_KEY);
     } catch {
@@ -104,14 +113,22 @@ export function requestGoogleAccessToken(
     return;
   }
 
-  if (!clientId || clientId.trim() === '') {
+  const cleanClientId = (clientId || '').trim();
+  if (!cleanClientId) {
     onError(new Error('Google Client ID is missing in Settings.'));
     return;
   }
 
   try {
+    let previouslyConsented = false;
+    try {
+      previouslyConsented = localStorage.getItem(CONSENTED_CLIENT_KEY) === cleanClientId;
+    } catch {
+      // Ignore
+    }
+
     const client = (window as any).google.accounts.oauth2.initTokenClient({
-      client_id: clientId.trim(),
+      client_id: cleanClientId,
       scope: GOOGLE_OAUTH_SCOPE,
       callback: (tokenResponse: any) => {
         if (tokenResponse.error) {
@@ -121,12 +138,17 @@ export function requestGoogleAccessToken(
         if (tokenResponse.access_token) {
           const expiresIn = parseInt(tokenResponse.expires_in, 10) || 3600;
           setCachedToken(tokenResponse.access_token, expiresIn);
+          try {
+            localStorage.setItem(CONSENTED_CLIENT_KEY, cleanClientId);
+          } catch {
+            // Ignore
+          }
           onSuccess(tokenResponse.access_token);
         }
       },
     });
 
-    client.requestAccessToken({ prompt: 'consent' });
+    client.requestAccessToken({ prompt: previouslyConsented ? '' : 'consent' });
   } catch (err) {
     console.error('Failed to initTokenClient:', err);
     onError(err);

@@ -10,6 +10,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Check, Delete, ChevronLeft, ChevronRight, RotateCcw, Edit3, Grid, ArrowRight } from 'lucide-react';
 import { PointLocation } from '../types';
+import { getLocalizedPointName } from '../data/defaultPoints';
 import { useLanguage } from '../i18n/LanguageContext';
 
 interface ManualInputModalProps {
@@ -43,7 +44,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
   hasPrev = false,
   hasNext = false,
 }) => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [valStr, setValStr] = useState<string>('');
   const [isInitialUntouched, setIsInitialUntouched] = useState<boolean>(false);
   const [showFullGrid, setShowFullGrid] = useState<boolean>(false);
@@ -166,9 +167,9 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
-      handleConfirm(false);
+      handleConfirm(true);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       if (showFullGrid) {
@@ -222,7 +223,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
                   </button>
                 </div>
                 <h3 className="text-sm font-bold text-white truncate max-w-[150px]">
-                  {point.name}
+                  {getLocalizedPointName(point, lang)}
                 </h3>
               </div>
             </div>
@@ -391,7 +392,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
 
           {isInitialUntouched && (
             <span className="text-[10px] text-slate-500 mt-1">
-              Нажмите цифру или пресет для замены
+              {t.tapDigitToReplace}
             </span>
           )}
         </div>
@@ -489,7 +490,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
               }}
               className="py-1 text-xs text-rose-400 hover:text-rose-300 transition text-center hover:underline"
             >
-              Сбросить замер точки №{point.number}
+              {t.resetPointMeasurement}{point.number}
             </button>
           )}
         </div>

@@ -7,6 +7,7 @@
  */
 
 import { ArenaSettings, PointLocation, SessionStatistics } from '../types';
+import { getLocalizedArenaName } from '../data/defaultPoints';
 import { translations, Language } from '../i18n/translations';
 
 export function getPointColor(
@@ -125,7 +126,7 @@ export async function generateArenaPng(
   // Title
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 30px system-ui, -apple-system, sans-serif';
-  ctx.fillText(settings.arenaName || 'Arena', 50, 52);
+  ctx.fillText(getLocalizedArenaName(settings.arenaName, lang), 50, 52);
 
   const subHeader =
     lang === 'lv'
