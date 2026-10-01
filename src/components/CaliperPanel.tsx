@@ -23,6 +23,8 @@ import {
   Keyboard,
   HelpCircle,
   CheckCircle2,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { BleConnectionStatus, PointLocation, ThicknessThresholds } from '../types';
 import { getPointColor } from '../services/exportImage';
@@ -54,6 +56,10 @@ interface CaliperPanelProps {
   onToggleSound: (val: boolean) => void;
   thresholds: ThicknessThresholds;
   isBleSupported: boolean;
+  isWakeLockActive?: boolean;
+  isWakeLockSupported?: boolean;
+  onRequestWakeLock?: () => void;
+  onReleaseWakeLock?: () => void;
 }
 
 export const CaliperPanel: React.FC<CaliperPanelProps> = ({
@@ -81,6 +87,10 @@ export const CaliperPanel: React.FC<CaliperPanelProps> = ({
   onToggleSound,
   thresholds,
   isBleSupported,
+  isWakeLockActive = false,
+  isWakeLockSupported = true,
+  onRequestWakeLock,
+  onReleaseWakeLock,
 }) => {
   const { t, lang } = useLanguage();
   const [isControlsExpanded, setIsControlsExpanded] = useState(false);
@@ -197,6 +207,44 @@ export const CaliperPanel: React.FC<CaliperPanelProps> = ({
               )}
             </div>
           </div>
+        </button>
+
+        {/* Screen Wake Lock Status Indicator */}
+        <button
+          type="button"
+          onClick={() => {
+            if (!isWakeLockSupported) return;
+            if (isWakeLockActive) {
+              onReleaseWakeLock?.();
+            } else {
+              onRequestWakeLock?.();
+            }
+          }}
+          title="Экран не гаснет, данные принимаются"
+          className={`px-2.5 py-1 rounded-xl border text-[11px] font-semibold flex items-center gap-1.5 transition shrink-0 ${
+            !isWakeLockSupported
+              ? 'bg-amber-950/50 text-amber-300 border-amber-700/60 cursor-default'
+              : isWakeLockActive
+              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30 cursor-pointer'
+              : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-slate-200 cursor-pointer'
+          }`}
+        >
+          {isWakeLockActive ? (
+            <>
+              <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="hidden xs:inline">Экран удерживается</span>
+            </>
+          ) : !isWakeLockSupported ? (
+            <>
+              <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="hidden sm:inline">Держите экран включённым вручную</span>
+            </>
+          ) : (
+            <>
+              <Moon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="hidden xs:inline">Не удерживается</span>
+            </>
+          )}
         </button>
 
         {/* Right Chevron Button to Expand / Collapse Caliper Controls */}

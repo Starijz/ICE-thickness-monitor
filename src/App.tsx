@@ -65,6 +65,7 @@ import { ExportModal } from './components/ExportModal';
 import { HistoryModal } from './components/HistoryModal';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { GemRedGuideModal } from './components/GemRedGuideModal';
+import { useWakeLock } from './hooks/useWakeLock';
 import { useLanguage } from './i18n/LanguageContext';
 import { Language } from './i18n/translations';
 
@@ -109,6 +110,14 @@ export default function App() {
   const [bleStatusMessage, setBleStatusMessage] = useState<string>('');
   const [deviceName, setDeviceName] = useState<string | null>(null);
   const [isBleSupported, setIsBleSupported] = useState<boolean>(true);
+
+  // --- Screen Wake Lock State ---
+  const {
+    isActive: isWakeLockActive,
+    isSupported: isWakeLockSupported,
+    requestWakeLock,
+    releaseWakeLock,
+  } = useWakeLock();
 
   // --- Preferences & Offline Sync ---
   const [autoAdvance, setAutoAdvance] = useState<boolean>(true);
@@ -307,6 +316,9 @@ export default function App() {
     const unsubStatus = bleCaliper.onStatusChange((status, message) => {
       setBleStatus(status);
       if (message) setBleStatusMessage(message);
+      if (status === 'disconnected') {
+        releaseWakeLock();
+      }
     });
 
     const unsubMeasurement = bleCaliper.onMeasurement((valMm) => {
@@ -319,7 +331,31 @@ export default function App() {
       unsubStatus();
       unsubMeasurement();
     };
-  }, [activePointNumber, applyMeasurement, autoAdvance]);
+  }, [activePointNumber, applyMeasurement, autoAdvance, releaseWakeLock]);
+
+  // Re-request Wake Lock when page returns to visible state and Bluetooth is still connected
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === 'visible' &&
+        (bleStatus === 'connected' || bleCaliper.getStatus() === 'connected')
+      ) {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [bleStatus, requestWakeLock]);
+
+  // Release Wake Lock when leaving the measurements screen (component unmount)
+  useEffect(() => {
+    return () => {
+      releaseWakeLock();
+    };
+  }, [releaseWakeLock]);
 
   // Handle measurement arriving from GemRed Bluetooth HID Caliper
   const handleHidMeasurement = useCallback(
@@ -407,6 +443,15 @@ export default function App() {
         const dev = bleCaliper.getDevice();
         setDeviceName(dev?.name || 'BLE Caliper');
         notify('success', `${dev?.name || 'BLE'} ${t.connected}`);
+
+        if (!isWakeLockSupported) {
+          notify('info', 'Держите экран включённым вручную');
+        } else {
+          const lockAcquired = await requestWakeLock();
+          if (!lockAcquired) {
+            notify('info', 'Держите экран включённым вручную');
+          }
+        }
       } else if (bleCaliper.getStatus() === 'error') {
         // Show GemRed / HID setup guide when Web Bluetooth is blocked or unsupported
         setIsGemRedGuideOpen(true);
@@ -420,6 +465,7 @@ export default function App() {
 
   const handleDisconnectBle = async () => {
     await bleCaliper.disconnect();
+    await releaseWakeLock();
     setDeviceName(null);
     notify('info', t.disconnected);
   };
@@ -994,6 +1040,10 @@ export default function App() {
           onToggleSound={setSoundEnabled}
           thresholds={settings.thresholds}
           isBleSupported={isBleSupported}
+          isWakeLockActive={isWakeLockActive}
+          isWakeLockSupported={isWakeLockSupported}
+          onRequestWakeLock={requestWakeLock}
+          onReleaseWakeLock={releaseWakeLock}
         />
 
         {/* 2. INTERACTIVE HOCKEY RINK (30x60m) */}
