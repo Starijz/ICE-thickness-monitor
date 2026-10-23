@@ -75,7 +75,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = (forceConsent = false) => {
     if (!formData.googleClientId) {
       setAuthStatus(t.googleClientIdHelp);
       return;
@@ -98,7 +98,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       },
       (err) => {
         setAuthStatus(`${t.googleLoginError}: ${err.message || err}`);
-      }
+      },
+      forceConsent
     );
   };
 
@@ -398,14 +399,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <span
                     className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                       hasToken
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                        ? userEmail
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
                         : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
                     }`}
                   >
                     {hasToken
                       ? userEmail
                         ? `${t.authorizedAs}: ${userEmail}`
-                        : t.authorizedAs
+                        : 'Токен без доступа к Email'
                       : t.notAuthorized}
                   </span>
                 </div>
@@ -413,7 +416,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {!hasToken ? (
                     <button
-                      onClick={handleGoogleLogin}
+                      onClick={() => handleGoogleLogin(false)}
                       className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold shadow transition"
                     >
                       <LogIn className="w-4 h-4" />
@@ -429,6 +432,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         {t.signOutGoogle}
                       </button>
 
+                      {!userEmail && (
+                        <button
+                          onClick={() => handleGoogleLogin(true)}
+                          className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow transition"
+                          title="Обновить токен с разрешением на чтение Email"
+                        >
+                          <LogIn className="w-4 h-4" />
+                          Обновить доступ (разрешить Email)
+                        </button>
+                      )}
+
                       <button
                         onClick={handleTestConnection}
                         disabled={testingConnection}
@@ -440,6 +454,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   )}
                 </div>
+
+                {hasToken && !userEmail && (
+                  <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-xs text-amber-900 dark:text-amber-200">
+                    <div className="font-bold flex items-center gap-1.5 mb-1">
+                      <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>Причина пустого столбца: старый токен без прав на Email</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed mb-2">
+                      Google не отдаёт почту аккаунта, если авторизация была получена до добавления столбца Email. Нажмите <strong>«Обновить доступ (разрешить Email)»</strong> выше и подтвердите доступ в окне Google, чтобы почта начала записываться в столбец А.
+                    </p>
+                  </div>
+                )}
 
                 {authStatus && (
                   <p className="mt-2 text-xs text-sky-800 dark:text-sky-300 font-medium">

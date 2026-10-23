@@ -10,7 +10,7 @@ import { addToSyncQueue, getSyncQueue, removeFromSyncQueue, updateSyncQueueItem 
 
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
 const GOOGLE_OAUTH_SCOPE =
-  'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email';
+  'https://www.googleapis.com/auth/spreadsheets openid email https://www.googleapis.com/auth/userinfo.email';
 
 const SESSION_TOKEN_KEY = 'ice_gsi_token';
 const SESSION_EXPIRY_KEY = 'ice_gsi_token_exp';
@@ -123,7 +123,19 @@ export function setCachedUserEmail(email: string) {
 }
 
 /**
- * Fetch authenticated user profile email from Google UserInfo endpoint
+ * Checks if a token is cached but its user email is missing
+ */
+export function hasTokenMissingEmail(): boolean {
+  const token = getCachedToken();
+  const email = getCachedUserEmail();
+  return !!token && !email;
+}
+
+/**
+ * Fetch authenticated user profile email using multiple fallback Google endpoints:
+ * 1. Google OAuth2 UserInfo (/oauth2/v3/userinfo)
+ * 2. OpenID Connect UserInfo (/v1/userinfo)
+ * 3. TokenInfo (/oauth2/v3/tokeninfo)
  */
 export async function fetchUserEmail(accessToken: string): Promise<string | null> {
   const cached = getCachedUserEmail();
@@ -131,6 +143,7 @@ export async function fetchUserEmail(accessToken: string): Promise<string | null
 
   if (!accessToken) return null;
 
+  // 1. Try Google OAuth2 UserInfo endpoint
   try {
     const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: {
@@ -147,6 +160,41 @@ export async function fetchUserEmail(accessToken: string): Promise<string | null
   } catch (e) {
     console.warn('Could not fetch user email from Google UserInfo:', e);
   }
+
+  // 2. Fallback to OpenID Connect userinfo endpoint
+  try {
+    const oidcRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    if (oidcRes.ok) {
+      const oidcData = await oidcRes.json();
+      if (oidcData.email) {
+        setCachedUserEmail(oidcData.email);
+        return oidcData.email;
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  // 3. Fallback to Google tokeninfo endpoint (often contains email if user signed in with email scope)
+  try {
+    const tokenInfoRes = await fetch(
+      `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(accessToken)}`
+    );
+    if (tokenInfoRes.ok) {
+      const info = await tokenInfoRes.json();
+      if (info.email) {
+        setCachedUserEmail(info.email);
+        return info.email;
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch tokeninfo from Google:', e);
+  }
+
   return null;
 }
 
@@ -162,6 +210,8 @@ export function clearCachedToken() {
       sessionStorage.removeItem(SESSION_EXPIRY_KEY);
       localStorage.removeItem(SESSION_USER_EMAIL_KEY);
       sessionStorage.removeItem(SESSION_USER_EMAIL_KEY);
+      localStorage.removeItem(CONSENTED_CLIENT_KEY);
+      sessionStorage.removeItem(CONSENTED_CLIENT_KEY);
     } catch {
       // Ignore
     }
@@ -169,12 +219,15 @@ export function clearCachedToken() {
 }
 
 /**
- * Initialize Google Identity Services (GSI) OAuth 2.0 Token Client
+ * Initialize Google Identity Services (GSI) OAuth 2.0 Token Client.
+ * When forceConsent is true or email is not yet stored, prompt='consent' is used
+ * so Google prompts the user to grant access to their email address.
  */
 export function requestGoogleAccessToken(
   clientId: string,
   onSuccess: (token: string, email?: string) => void,
-  onError: (err: any) => void
+  onError: (err: any) => void,
+  forceConsent: boolean = false
 ) {
   if (typeof window === 'undefined' || !(window as any).google?.accounts?.oauth2) {
     onError(new Error('Google Identity Services script not loaded. Check internet connection.'));
@@ -190,7 +243,11 @@ export function requestGoogleAccessToken(
   try {
     let previouslyConsented = false;
     try {
-      previouslyConsented = localStorage.getItem(CONSENTED_CLIENT_KEY) === cleanClientId;
+      // Only skip consent screen if client was already consented AND we already have the email
+      previouslyConsented =
+        !forceConsent &&
+        !!getCachedUserEmail() &&
+        localStorage.getItem(CONSENTED_CLIENT_KEY) === cleanClientId;
     } catch {
       // Ignore
     }

@@ -532,6 +532,23 @@ export default function App() {
 
     setIsSaving(true);
     const now = new Date();
+
+    let activeEmail = googleUserEmail || getCachedUserEmail() || undefined;
+    if (!activeEmail) {
+      const cachedTok = getCachedToken();
+      if (cachedTok) {
+        try {
+          const fetched = await fetchUserEmail(cachedTok);
+          if (fetched) {
+            activeEmail = fetched;
+            setGoogleUserEmail(fetched);
+          }
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
     const newSession: MeasurementSession = {
       id: currentSessionId,
       timestamp: now.toISOString(),
@@ -539,7 +556,7 @@ export default function App() {
       arenaName: getLocalizedArenaName(settings.arenaName, lang),
       measurements: { ...measurements },
       pointsConfig: [...points],
-      userEmail: googleUserEmail || getCachedUserEmail() || undefined,
+      userEmail: activeEmail,
       syncedToGoogleSheets: false,
     };
 
@@ -738,7 +755,9 @@ export default function App() {
                     title={
                       settings.spreadsheetId
                         ? hasGoogleToken
-                          ? `${t.authorizedAs}${googleUserEmail ? `: ${googleUserEmail}` : ''}`
+                          ? googleUserEmail
+                            ? `${t.authorizedAs}: ${googleUserEmail}`
+                            : 'Вход выполнен, но старый токен без доступа к Email. Нажмите для обновления'
                           : t.signInGoogle
                         : t.spreadsheetIdHelp
                     }
@@ -746,8 +765,14 @@ export default function App() {
                     <FileSpreadsheet className="w-3 h-3" />
                     {settings.spreadsheetId ? (
                       hasGoogleToken ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                          Sheets{googleUserEmail ? ` (${googleUserEmail.split('@')[0]})` : ''}
+                        <span
+                          className={
+                            googleUserEmail
+                              ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                              : 'text-amber-600 dark:text-amber-400 font-medium'
+                          }
+                        >
+                          Sheets{googleUserEmail ? ` (${googleUserEmail.split('@')[0]})` : ' (нет email)'}
                         </span>
                       ) : (
                         <span className="text-amber-600 dark:text-amber-400 font-medium">Sheets: {t.signInGoogle}</span>
