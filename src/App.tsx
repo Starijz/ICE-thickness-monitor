@@ -53,6 +53,8 @@ import {
   syncSessionToGoogleSheets,
   processOfflineSyncQueue,
   getCachedToken,
+  getCachedUserEmail,
+  fetchUserEmail,
 } from './services/googleSheets';
 
 import { HockeyRink } from './components/HockeyRink';
@@ -127,6 +129,7 @@ export default function App() {
   );
   const [offlineQueueCount, setOfflineQueueCount] = useState<number>(0);
   const [hasGoogleToken, setHasGoogleToken] = useState<boolean>(() => !!getCachedToken());
+  const [googleUserEmail, setGoogleUserEmail] = useState<string | null>(() => getCachedUserEmail());
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info';
@@ -212,7 +215,18 @@ export default function App() {
 
         const queue = await getOfflineQueue();
         setOfflineQueueCount(queue.length);
-        setHasGoogleToken(!!getCachedToken());
+        const token = getCachedToken();
+        setHasGoogleToken(!!token);
+        if (token) {
+          const cachedEm = getCachedUserEmail();
+          if (cachedEm) {
+            setGoogleUserEmail(cachedEm);
+          } else {
+            fetchUserEmail(token).then((em) => {
+              if (em) setGoogleUserEmail(em);
+            });
+          }
+        }
       } catch (err) {
         console.error('Failed to initialize database:', err);
       }
@@ -525,6 +539,7 @@ export default function App() {
       arenaName: getLocalizedArenaName(settings.arenaName, lang),
       measurements: { ...measurements },
       pointsConfig: [...points],
+      userEmail: googleUserEmail || getCachedUserEmail() || undefined,
       syncedToGoogleSheets: false,
     };
 
@@ -720,12 +735,20 @@ export default function App() {
                     type="button"
                     onClick={() => setIsSettingsOpen(true)}
                     className="flex items-center gap-1 hover:underline text-left cursor-pointer"
-                    title={settings.spreadsheetId ? (hasGoogleToken ? t.authorizedAs : t.signInGoogle) : t.spreadsheetIdHelp}
+                    title={
+                      settings.spreadsheetId
+                        ? hasGoogleToken
+                          ? `${t.authorizedAs}${googleUserEmail ? `: ${googleUserEmail}` : ''}`
+                          : t.signInGoogle
+                        : t.spreadsheetIdHelp
+                    }
                   >
                     <FileSpreadsheet className="w-3 h-3" />
                     {settings.spreadsheetId ? (
                       hasGoogleToken ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">Sheets</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          Sheets{googleUserEmail ? ` (${googleUserEmail.split('@')[0]})` : ''}
+                        </span>
                       ) : (
                         <span className="text-amber-600 dark:text-amber-400 font-medium">Sheets: {t.signInGoogle}</span>
                       )
@@ -1143,6 +1166,7 @@ export default function App() {
         onClose={() => {
           setIsSettingsOpen(false);
           setHasGoogleToken(!!getCachedToken());
+          setGoogleUserEmail(getCachedUserEmail());
         }}
         settings={settings}
         onSaveSettings={handleSaveSettings}

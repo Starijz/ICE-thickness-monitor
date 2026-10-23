@@ -45,10 +45,10 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
     if (sessions.length === 0) return;
 
     const sortedPoints = [...points].sort((a, b) => a.number - b.number);
-    const headers = ['ID', 'Date', ...sortedPoints.map((p) => `point${p.number}`)];
+    const headers = ['ID', 'Email', 'Date', ...sortedPoints.map((p) => `Point ${p.number}`)];
 
     const rows = sessions.map((s) => {
-      const row = [s.id, s.formattedDate || s.timestamp];
+      const row = [s.id, s.userEmail || '', s.formattedDate || s.timestamp];
       sortedPoints.forEach((p) => {
         row.push(s.measurements[p.number] !== undefined ? `${s.measurements[p.number]}` : '');
       });
@@ -141,13 +141,18 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                       )}
                     </div>
 
-                    <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
                       <span>
                         {t.points}: <strong className="text-slate-700 dark:text-slate-200">{measuredCount}</strong>
                       </span>
                       <span>
                         {t.average}: <strong className="text-slate-700 dark:text-slate-200">{avg} mm</strong>
                       </span>
+                      {s.userEmail && (
+                        <span className="font-mono text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded text-[11px]">
+                          {s.userEmail}
+                        </span>
+                      )}
                       {s.arenaName && <span className="truncate max-w-[150px]">{s.arenaName}</span>}
                     </div>
                   </div>

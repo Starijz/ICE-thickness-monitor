@@ -27,6 +27,7 @@ export interface MeasurementSession {
   measurements: Record<number, number>; // pointNumber -> value in mm
   pointsConfig?: PointLocation[];
   notes?: string;
+  userEmail?: string;
   syncedToGoogleSheets: boolean;
   syncedAt?: string;
   syncError?: string;

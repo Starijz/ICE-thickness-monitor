@@ -9,15 +9,18 @@ import { MeasurementSession, PointLocation } from '../types';
 import { addToSyncQueue, getSyncQueue, removeFromSyncQueue, updateSyncQueueItem } from '../db/indexedDb';
 
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
-const GOOGLE_OAUTH_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
+const GOOGLE_OAUTH_SCOPE =
+  'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email';
 
 const SESSION_TOKEN_KEY = 'ice_gsi_token';
 const SESSION_EXPIRY_KEY = 'ice_gsi_token_exp';
+const SESSION_USER_EMAIL_KEY = 'ice_gsi_user_email';
 const CONSENTED_CLIENT_KEY = 'ice_gsi_consented_client';
 
 // In-memory token storage with localStorage + sessionStorage fallback
 let inMemoryAccessToken: string | null = null;
 let tokenExpiresAt: number = 0;
+let inMemoryUserEmail: string | null = null;
 
 /**
  * Extract clean Spreadsheet ID from raw ID or full Google Sheets URL
@@ -85,15 +88,80 @@ export function setCachedToken(token: string, expiresInSeconds: number = 3600) {
   }
 }
 
+export function getCachedUserEmail(): string | null {
+  if (inMemoryUserEmail) {
+    return inMemoryUserEmail;
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const savedEmail =
+        localStorage.getItem(SESSION_USER_EMAIL_KEY) ||
+        sessionStorage.getItem(SESSION_USER_EMAIL_KEY);
+      if (savedEmail) {
+        inMemoryUserEmail = savedEmail;
+        return savedEmail;
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  return null;
+}
+
+export function setCachedUserEmail(email: string) {
+  inMemoryUserEmail = email;
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(SESSION_USER_EMAIL_KEY, email);
+      sessionStorage.setItem(SESSION_USER_EMAIL_KEY, email);
+    } catch {
+      // Ignore
+    }
+  }
+}
+
+/**
+ * Fetch authenticated user profile email from Google UserInfo endpoint
+ */
+export async function fetchUserEmail(accessToken: string): Promise<string | null> {
+  const cached = getCachedUserEmail();
+  if (cached) return cached;
+
+  if (!accessToken) return null;
+
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.email) {
+        setCachedUserEmail(data.email);
+        return data.email;
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch user email from Google UserInfo:', e);
+  }
+  return null;
+}
+
 export function clearCachedToken() {
   inMemoryAccessToken = null;
   tokenExpiresAt = 0;
+  inMemoryUserEmail = null;
   if (typeof window !== 'undefined') {
     try {
       localStorage.removeItem(SESSION_TOKEN_KEY);
       localStorage.removeItem(SESSION_EXPIRY_KEY);
       sessionStorage.removeItem(SESSION_TOKEN_KEY);
       sessionStorage.removeItem(SESSION_EXPIRY_KEY);
+      localStorage.removeItem(SESSION_USER_EMAIL_KEY);
+      sessionStorage.removeItem(SESSION_USER_EMAIL_KEY);
     } catch {
       // Ignore
     }
@@ -105,7 +173,7 @@ export function clearCachedToken() {
  */
 export function requestGoogleAccessToken(
   clientId: string,
-  onSuccess: (token: string) => void,
+  onSuccess: (token: string, email?: string) => void,
   onError: (err: any) => void
 ) {
   if (typeof window === 'undefined' || !(window as any).google?.accounts?.oauth2) {
@@ -130,7 +198,7 @@ export function requestGoogleAccessToken(
     const client = (window as any).google.accounts.oauth2.initTokenClient({
       client_id: cleanClientId,
       scope: GOOGLE_OAUTH_SCOPE,
-      callback: (tokenResponse: any) => {
+      callback: async (tokenResponse: any) => {
         if (tokenResponse.error) {
           onError(new Error(`OAuth error: ${tokenResponse.error_description || tokenResponse.error}`));
           return;
@@ -143,7 +211,10 @@ export function requestGoogleAccessToken(
           } catch {
             // Ignore
           }
-          onSuccess(tokenResponse.access_token);
+
+          // Fetch authenticated email address
+          const email = await fetchUserEmail(tokenResponse.access_token);
+          onSuccess(tokenResponse.access_token, email || undefined);
         }
       },
     });
@@ -216,12 +287,12 @@ export async function testSpreadsheetConnection(
 
 /**
  * Build standard header row:
- * ["Date", "Point 1", "Point 2", "Point 3", ...]
- * As requested: "point1 меняем на более красивый Point 1"
+ * ["Email", "Date", "Point 1", "Point 2", "Point 3", ...]
+ * Email is column 1 (A), Date is column 2 (B), followed by measurement points
  */
 export function buildHeaderRow(points: PointLocation[]): string[] {
   const sorted = [...points].sort((a, b) => a.number - b.number);
-  const headers = ['Date'];
+  const headers = ['Email', 'Date'];
   sorted.forEach((p) => {
     headers.push(`Point ${p.number}`);
   });
@@ -230,12 +301,14 @@ export function buildHeaderRow(points: PointLocation[]): string[] {
 
 /**
  * Ensure sheet has header row. If row 1 is empty, write header.
+ * If sheet has old header ('Date' in column A), automatically insert column A for 'Email'.
  */
 export async function ensureHeaderRow(
   spreadsheetId: string,
   yearTitle: string,
   points: PointLocation[],
-  accessToken: string
+  accessToken: string,
+  allSheets?: any[]
 ): Promise<void> {
   const cleanId = extractSpreadsheetId(spreadsheetId);
   // Numeric sheet titles MUST be quoted in single quotes, e.g. '2026'!1:1
@@ -252,8 +325,79 @@ export async function ensureHeaderRow(
     if (res.ok) {
       const data = await res.json();
       if (data.values && data.values.length > 0 && data.values[0].length > 0) {
-        // Headers already exist
-        return;
+        const firstCol = String(data.values[0][0] || '').trim().toLowerCase();
+
+        // If header already has Email as column A, nothing needs to be migrated
+        if (firstCol === 'email') {
+          return;
+        }
+
+        // If header starts with 'Date' (old schema), insert a new column A for 'Email'
+        // so that existing data cleanly shifts to columns B, C, D... and A1 becomes 'Email'
+        if (firstCol === 'date' || firstCol.startsWith('point')) {
+          try {
+            let sheetId: number | undefined;
+            if (allSheets) {
+              const found = allSheets.find((s: any) => s.properties?.title === yearTitle);
+              sheetId = found?.properties?.sheetId;
+            }
+            if (sheetId === undefined) {
+              const details = await getSpreadsheetDetails(cleanId, accessToken);
+              const found = (details.sheets || []).find((s: any) => s.properties?.title === yearTitle);
+              sheetId = found?.properties?.sheetId;
+            }
+
+            if (sheetId !== undefined) {
+              // 1. Insert column at index 0
+              const batchUpdateUrl = `${SHEETS_API_BASE}/${encodeURIComponent(cleanId)}:batchUpdate`;
+              await fetch(batchUpdateUrl, {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  requests: [
+                    {
+                      insertDimension: {
+                        range: {
+                          sheetId,
+                          dimension: 'COLUMNS',
+                          startIndex: 0,
+                          endIndex: 1,
+                        },
+                        inheritFromBefore: false,
+                      },
+                    },
+                  ],
+                }),
+              });
+
+              // 2. Write 'Email' into cell A1
+              const writeRange = `'${yearTitle}'!A1`;
+              const putUrl = `${SHEETS_API_BASE}/${encodeURIComponent(cleanId)}/values/${encodeURIComponent(
+                writeRange
+              )}?valueInputOption=USER_ENTERED`;
+              await fetch(putUrl, {
+                method: 'PUT',
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  majorDimension: 'ROWS',
+                  values: [['Email']],
+                }),
+              });
+
+              return;
+            }
+          } catch (migrateErr) {
+            console.warn('Could not insert Email column into existing sheet:', migrateErr);
+          }
+        } else {
+          return;
+        }
       }
     }
   } catch (e) {
@@ -333,7 +477,7 @@ export async function createYearWorksheetWithHeader(
     //
   }
 
-  // 2. Write short header row ("Date", "point1", "point2", ...)
+  // 2. Write standard header row ("Email", "Date", "Point 1", "Point 2", ...)
   const headerRow = buildHeaderRow(points);
   const writeRange = `'${yearTitle}'!A1`;
   const putUrl = `${SHEETS_API_BASE}/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(
@@ -362,8 +506,9 @@ export async function createYearWorksheetWithHeader(
 
 /**
  * Append session row to the sheet:
- * A: Timestamp (formatted Date & Time)
- * B..N: thickness value in mm for point1, point2...
+ * A: User Email with whose authorization data was sent
+ * B: Timestamp (formatted Date & Time)
+ * C..N: thickness value in mm for point1, point2...
  */
 export async function appendSessionRow(
   rawSpreadsheetId: string,
@@ -374,8 +519,12 @@ export async function appendSessionRow(
 ) {
   const spreadsheetId = extractSpreadsheetId(rawSpreadsheetId);
   const sortedPoints = [...points].sort((a, b) => a.number - b.number);
+  const userEmail = session.userEmail || getCachedUserEmail() || '';
 
-  const rowData: (string | number)[] = [session.formattedDate || session.timestamp];
+  const rowData: (string | number)[] = [
+    userEmail,
+    session.formattedDate || session.timestamp,
+  ];
 
   for (const pt of sortedPoints) {
     const val = session.measurements[pt.number];
@@ -433,6 +582,10 @@ export async function syncSessionToGoogleSheets(
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
   if (!spreadsheetId || !token || !isOnline) {
+    if (!session.userEmail) {
+      const cachedEmail = getCachedUserEmail();
+      if (cachedEmail) session.userEmail = cachedEmail;
+    }
     const reason = !isOnline
       ? 'Офлайн режим'
       : !token
@@ -451,6 +604,14 @@ export async function syncSessionToGoogleSheets(
   }
 
   try {
+    // Populate userEmail if not present in session
+    if (!session.userEmail) {
+      const email = getCachedUserEmail() || (await fetchUserEmail(token));
+      if (email) {
+        session.userEmail = email;
+      }
+    }
+
     const sessionYear = new Date(session.timestamp).getFullYear().toString();
 
     // 1. Get sheets list
@@ -460,20 +621,22 @@ export async function syncSessionToGoogleSheets(
       (s: any) => s.properties?.title === sessionYear
     );
 
-    // 2. If year sheet does not exist, create it with short header ('Date', 'point1', 'point2'...)
+    // 2. If year sheet does not exist, create it with standard header ('Email', 'Date', 'Point 1'...)
     if (!yearSheetExists) {
       await createYearWorksheetWithHeader(spreadsheetId, sessionYear, points, token);
     } else {
-      // Make sure existing sheet has header row
-      await ensureHeaderRow(spreadsheetId, sessionYear, points, token);
+      // Make sure existing sheet has header row (migrating old format if needed)
+      await ensureHeaderRow(spreadsheetId, sessionYear, points, token, existingSheets);
     }
 
     // 3. Append session data
     const appendResult = await appendSessionRow(spreadsheetId, sessionYear, session, points, token);
 
+    const emailNote = session.userEmail ? ` [${session.userEmail}]` : '';
+
     return {
       success: true,
-      message: `Данные успешно сохранены в Google Таблицу (Лист "${sessionYear}")`,
+      message: `Данные успешно сохранены в Google Таблицу (Лист "${sessionYear}"${emailNote})`,
       details: appendResult,
     };
   } catch (err: any) {

@@ -26,6 +26,8 @@ import { saveSettings } from '../db/indexedDb';
 import { GoogleSetupGuide } from './GoogleSetupGuide';
 import {
   getCachedToken,
+  getCachedUserEmail,
+  fetchUserEmail,
   requestGoogleAccessToken,
   clearCachedToken,
   testSpreadsheetConnection,
@@ -52,13 +54,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [formData, setFormData] = useState<ArenaSettings>({ ...settings });
   const [authStatus, setAuthStatus] = useState<string | null>(null);
   const [hasToken, setHasToken] = useState<boolean>(!!getCachedToken());
+  const [userEmail, setUserEmail] = useState<string | null>(() => getCachedUserEmail());
   const [testingConnection, setTestingConnection] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setFormData({ ...settings });
-      setHasToken(!!getCachedToken());
+      const token = getCachedToken();
+      setHasToken(!!token);
+      const email = getCachedUserEmail();
+      setUserEmail(email);
+      if (token && !email) {
+        fetchUserEmail(token).then((em) => {
+          if (em) setUserEmail(em);
+        });
+      }
     }
   }, [isOpen, settings]);
 
@@ -76,9 +87,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setAuthStatus(t.syncing);
     requestGoogleAccessToken(
       formData.googleClientId,
-      () => {
+      (token, email) => {
         setHasToken(true);
-        setAuthStatus(t.googleLoginSuccess);
+        if (email) setUserEmail(email);
+        setAuthStatus(
+          email
+            ? `${t.googleLoginSuccess} (${email})`
+            : t.googleLoginSuccess
+        );
       },
       (err) => {
         setAuthStatus(`${t.googleLoginError}: ${err.message || err}`);
@@ -89,6 +105,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleGoogleLogout = () => {
     clearCachedToken();
     setHasToken(false);
+    setUserEmail(null);
     setAuthStatus(t.notAuthorized);
     setTestResult(null);
   };
@@ -385,7 +402,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
                     }`}
                   >
-                    {hasToken ? t.authorizedAs : t.notAuthorized}
+                    {hasToken
+                      ? userEmail
+                        ? `${t.authorizedAs}: ${userEmail}`
+                        : t.authorizedAs
+                      : t.notAuthorized}
                   </span>
                 </div>
 
@@ -488,7 +509,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span className="font-bold text-slate-800 dark:text-slate-200 block mb-1">
                   Google Sheet Columns:
                 </span>
-                Header: <code>Date</code>, <code>point1</code>, <code>point2</code>, <code>point3</code>, ...
+                Header: <code>Email</code>, <code>Date</code>, <code>Point 1</code>, <code>Point 2</code>, <code>Point 3</code>, ...
               </div>
             </div>
           )}
