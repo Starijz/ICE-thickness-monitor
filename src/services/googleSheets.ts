@@ -38,6 +38,59 @@ export function extractSpreadsheetId(input: string): string {
   return clean;
 }
 
+/**
+ * Format date & time strictly as "DD.MM.YYYY, HH:mm:ss" (e.g. "30.09.2026, 15:11:49")
+ * Unified across all devices, operating systems, and browser locales.
+ */
+export function formatSessionDateTime(input?: string | number | Date): string {
+  if (!input) {
+    return formatFromDateObj(new Date());
+  }
+
+  if (input instanceof Date) {
+    return isNaN(input.getTime()) ? formatFromDateObj(new Date()) : formatFromDateObj(input);
+  }
+
+  if (typeof input === 'number') {
+    const d = new Date(input);
+    return isNaN(d.getTime()) ? formatFromDateObj(new Date()) : formatFromDateObj(d);
+  }
+
+  const str = String(input).trim();
+  if (!str) {
+    return formatFromDateObj(new Date());
+  }
+
+  // If already in DD.MM.YYYY, HH:mm:ss format, ensure proper 2-digit padding
+  const ddmmyyyyMatch = str.match(
+    /^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:,\s*|\s+)(\d{1,2}):(\d{2})(?::(\d{2}))?$/
+  );
+  if (ddmmyyyyMatch) {
+    const [, d, m, y, h, min, s] = ddmmyyyyMatch;
+    const pad = (n: string | number) => String(n).padStart(2, '0');
+    return `${pad(d)}.${pad(m)}.${y}, ${pad(h)}:${pad(min)}:${pad(s || '00')}`;
+  }
+
+  // Parse ISO strings or standard date strings (e.g., "10/23/2026, 12:04:50 PM")
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    return formatFromDateObj(parsed);
+  }
+
+  return formatFromDateObj(new Date());
+}
+
+function formatFromDateObj(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const day = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear();
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  const seconds = pad(d.getSeconds());
+  return `${day}.${month}.${year}, ${hours}:${minutes}:${seconds}`;
+}
+
 export function getCachedToken(): string | null {
   const now = Date.now();
   if (inMemoryAccessToken && now < tokenExpiresAt) {
@@ -577,10 +630,11 @@ export async function appendSessionRow(
   const spreadsheetId = extractSpreadsheetId(rawSpreadsheetId);
   const sortedPoints = [...points].sort((a, b) => a.number - b.number);
   const userEmail = session.userEmail || getCachedUserEmail() || '';
+  const sessionDate = formatSessionDateTime(session.timestamp || session.formattedDate || new Date());
 
   const rowData: (string | number)[] = [
     userEmail,
-    session.formattedDate || session.timestamp,
+    sessionDate,
   ];
 
   for (const pt of sortedPoints) {

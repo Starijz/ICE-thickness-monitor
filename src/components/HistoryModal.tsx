@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { MeasurementSession, PointLocation } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
+import { formatSessionDateTime } from '../services/googleSheets';
 
 interface HistoryModalProps {
   isOpen: boolean;
@@ -48,7 +49,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
     const headers = ['ID', 'Email', 'Date', ...sortedPoints.map((p) => `Point ${p.number}`)];
 
     const rows = sessions.map((s) => {
-      const row = [s.id, s.userEmail || '', s.formattedDate || s.timestamp];
+      const row = [s.id, s.userEmail || '', formatSessionDateTime(s.timestamp || s.formattedDate)];
       sortedPoints.forEach((p) => {
         row.push(s.measurements[p.number] !== undefined ? `${s.measurements[p.number]}` : '');
       });
@@ -126,7 +127,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm text-slate-900 dark:text-white">
-                        {s.formattedDate || new Date(s.timestamp).toLocaleString()}
+                        {formatSessionDateTime(s.timestamp || s.formattedDate)}
                       </span>
                       {s.syncedToGoogleSheets ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">

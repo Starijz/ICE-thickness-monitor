@@ -55,6 +55,7 @@ import {
   getCachedToken,
   getCachedUserEmail,
   fetchUserEmail,
+  formatSessionDateTime,
 } from './services/googleSheets';
 
 import { HockeyRink } from './components/HockeyRink';
@@ -516,11 +517,10 @@ export default function App() {
     }
   };
 
-  // Format date helper with locale
+  // Format date helper: strictly "DD.MM.YYYY, HH:mm:ss" (e.g. 30.09.2026, 15:11:49)
   const getFormattedDate = useCallback(() => {
-    const locale = lang === 'lv' ? 'lv-LV' : lang === 'en' ? 'en-US' : 'ru-RU';
-    return new Date().toLocaleString(locale);
-  }, [lang]);
+    return formatSessionDateTime(new Date());
+  }, []);
 
   // Save Session & Sync with Google Sheets
   const handleSaveSession = async () => {
